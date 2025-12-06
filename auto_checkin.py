@@ -127,9 +127,11 @@ class KurobbsClient:
     ):
         """Handle the common logic for sign-in actions."""
         resp = action_method()
-        if resp.success:
-            self.result[action_name] = success_message
-            logger.info("{} -> {}", action_name, success_message)
+        # code=1511 为"请勿重复签到"，视为成功处理
+        if resp.success or resp.code == 1511:
+            msg = success_message if resp.success else f"{success_message}(重复签到)"
+            self.result[action_name] = msg
+            logger.info("{} -> {}", action_name, msg)
         else:
             self.exceptions.append(KurobbsClientException(f"{failure_message}, {resp.msg}"))
 
@@ -169,9 +171,6 @@ def main():
         debug=parse_bool(os.getenv("DEBUG", "")),
         secrets=[
             os.getenv("TOKEN", ""),
-            os.getenv("BARK_DEVICE_KEY", ""),
-            os.getenv("BARK_SERVER_URL", ""),
-            os.getenv("SERVER3_SEND_KEY", ""),
         ],
     )
 

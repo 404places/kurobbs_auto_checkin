@@ -34,8 +34,32 @@ jobs:
         env:
           TOKEN: ${{ secrets.TOKEN }}
           DEBUG: ${{ secrets.DEBUG }}
-          BARK_DEVICE_KEY: ${{ secrets.BARK_DEVICE_KEY }}
-          BARK_SERVER_URL: ${{ secrets.BARK_SERVER_URL }}
-          SERVER3_SEND_KEY: ${{ secrets.SERVER3_SEND_KEY }} # ServerChan3
+          
+          # Telegram
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_API_URL: ${{ secrets.TELEGRAM_API_URL }}
+          TELEGRAM_HTTP_PROXY: ${{ secrets.TELEGRAM_HTTP_PROXY }}
+          
+          # WeCom App
+          WECOM_CORPID: ${{ secrets.WECOM_CORPID }}
+          WECOM_SECRET: ${{ secrets.WECOM_SECRET }}
+          WECOM_AGENTID: ${{ secrets.WECOM_AGENTID }}
+          WECOM_TOUSER: ${{ secrets.WECOM_TOUSER }}
+          
+          # WeCom Robot
+          WECOM_ROBOT_KEY: ${{ secrets.WECOM_ROBOT_KEY }}
+          
+          # DingTalk Robot
+          DINGTALK_ACCESS_TOKEN: ${{ secrets.DINGTALK_ACCESS_TOKEN }}
+          DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
+          
+          # Feishu Robot
+          FEISHU_BOT_TOKEN: ${{ secrets.FEISHU_BOT_TOKEN }}
+          
+          # Gotify
+          GOTIFY_URL: ${{ secrets.GOTIFY_URL }}
+          GOTIFY_TOKEN: ${{ secrets.GOTIFY_TOKEN }}
+
         run: |
           python auto_checkin.py

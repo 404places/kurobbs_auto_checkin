@@ -15,9 +15,6 @@ def parse_bool(value: str) -> bool:
 class Settings:
     token: str
     debug: bool = False
-    bark_device_key: Optional[str] = None
-    bark_server_url: Optional[str] = None
-    server3_send_key: Optional[str] = None
 
     @classmethod
     def load(cls) -> "Settings":
@@ -28,11 +25,8 @@ class Settings:
         return cls(
             token=token,
             debug=parse_bool(os.getenv("DEBUG", "")),
-            bark_device_key=os.getenv("BARK_DEVICE_KEY"),
-            bark_server_url=os.getenv("BARK_SERVER_URL"),
-            server3_send_key=os.getenv("SERVER3_SEND_KEY"),
         )
 
     def sensitive_values(self) -> List[str]:
         """Values that should be redacted from logs."""
-        return [value for value in [self.token, self.bark_device_key, self.bark_server_url, self.server3_send_key] if value]
+        return [self.token]
