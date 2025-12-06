@@ -45,14 +45,15 @@ Secrets 中。
 
 ### 6. 第三方结果推送（可选）
 
-将每日运行结果推送到其他APP当中。
 
-#### Server酱3
-
-1. 前往[Server酱3官网](https://sc3.ft07.com/)，微信扫码登入。
-2. SendKey-AppKey管理-添加新的AppKey。
-3. 将获得的AppKey写入Github Secrets，`Name`字段为`SERVER3_SEND_KEY`。具体可参考本文的`2. 设置 GitHub Secrets`部分。
-4. 下载[APP](https://sc3.ft07.com/client)并登入。
+|推送渠道|必需环境变量|	可选环境变量|
+|-|-|-|
+|Telegram	|TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID	|TELEGRAM_API_URL, TELEGRAM_HTTP_PROXY
+|企业微信应用	|WECOM_CORPID, WECOM_SECRET, WECOM_AGENTID	|WECOM_TOUSER (默认 @all)
+|企业微信机器人	|WECOM_ROBOT_KEY	|-
+|钉钉机器人	|DINGTALK_ACCESS_TOKEN	|DINGTALK_SECRET (加签密钥)
+|飞书机器人	|FEISHU_BOT_TOKEN	|-
+Gotify	|GOTIFY_URL, GOTIFY_TOKEN	|-
 
 ## 注意事项
 

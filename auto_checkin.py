@@ -8,8 +8,8 @@ import requests
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from ext_notification import NotificationService
 from logging_utils import configure_logger
+from push import push
 from settings import Settings, SettingsError, parse_bool
 
 
@@ -181,16 +181,14 @@ def main():
         logger.error(str(exc))
         sys.exit(1)
 
-    notifier = NotificationService(settings)
-
     try:
         kurobbs = KurobbsClient(settings.token)
         kurobbs.start()
         if kurobbs.msg:
-            notifier.send(kurobbs.msg)
+            push("库街区自动签到", kurobbs.msg)
     except KurobbsClientException as e:
         logger.error(str(e))
-        notifier.send(str(e))
+        push("库街区自动签到", str(e))
         sys.exit(1)
     except Exception as e:  # noqa: BLE001
         logger.exception("An unexpected error occurred: {}", e)
