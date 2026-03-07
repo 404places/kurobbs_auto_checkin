@@ -169,6 +169,7 @@ class SkylandClient:
 
         if not characters:
             logger.warning("未找到绑定的明日方舟角色")
+            self.result["binding"] = "未找到绑定的明日方舟角色"
             return
 
         logger.info("找到 {} 个明日方舟角色，开始签到", len(characters))
