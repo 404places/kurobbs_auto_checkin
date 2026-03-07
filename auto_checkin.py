@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from logging_utils import configure_logger
 from push import push
 from settings import Settings, SettingsError, parse_bool
+from skyland import SkylandClient, SkylandClientException
 
 
 class Response(BaseModel):
@@ -171,6 +172,7 @@ def main():
         debug=parse_bool(os.getenv("DEBUG", "")),
         secrets=[
             os.getenv("TOKEN", ""),
+            os.getenv("SKYLAND_TOKEN", ""),
         ],
     )
 
@@ -180,6 +182,9 @@ def main():
         logger.error(str(exc))
         sys.exit(1)
 
+    has_error = False
+
+    # --- 库街区签到 ---
     try:
         kurobbs = KurobbsClient(settings.token)
         kurobbs.start()
@@ -188,9 +193,31 @@ def main():
     except KurobbsClientException as e:
         logger.error(str(e))
         push("库街区自动签到", str(e))
-        sys.exit(1)
+        has_error = True
     except Exception as e:  # noqa: BLE001
         logger.exception("An unexpected error occurred: {}", e)
+        has_error = True
+
+    # --- 森空岛签到 ---
+    if settings.skyland_tokens:
+        for idx, sk_token in enumerate(settings.skyland_tokens, 1):
+            logger.info("森空岛签到 - 账号 {}/{}", idx, len(settings.skyland_tokens))
+            try:
+                skyland = SkylandClient(sk_token)
+                skyland.start()
+                if skyland.msg:
+                    push("森空岛自动签到", skyland.msg)
+            except SkylandClientException as e:
+                logger.error(str(e))
+                push("森空岛自动签到", str(e))
+                has_error = True
+            except Exception as e:  # noqa: BLE001
+                logger.exception("森空岛签到异常: {}", e)
+                has_error = True
+    else:
+        logger.info("未配置 SKYLAND_TOKEN，跳过森空岛签到")
+
+    if has_error:
         sys.exit(1)
 
 

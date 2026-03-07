@@ -61,5 +61,8 @@ jobs:
           GOTIFY_URL: ${{ secrets.GOTIFY_URL }}
           GOTIFY_TOKEN: ${{ secrets.GOTIFY_TOKEN }}
 
+          # Skyland (森空岛)
+          SKYLAND_TOKEN: ${{ secrets.SKYLAND_TOKEN }}
+
         run: |
           python auto_checkin.py
