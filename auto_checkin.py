@@ -183,19 +183,21 @@ def main():
         sys.exit(1)
 
     has_error = False
+    summary_parts = []  # 汇总所有签到结果
 
     # --- 库街区签到 ---
     try:
         kurobbs = KurobbsClient(settings.token)
         kurobbs.start()
         if kurobbs.msg:
-            push("库街区自动签到", kurobbs.msg)
+            summary_parts.append(f"【库街区】{kurobbs.msg}")
     except KurobbsClientException as e:
         logger.error(str(e))
-        push("库街区自动签到", str(e))
+        summary_parts.append(f"【库街区】❌ {e}")
         has_error = True
     except Exception as e:  # noqa: BLE001
         logger.exception("An unexpected error occurred: {}", e)
+        summary_parts.append(f"【库街区】❌ 异常: {e}")
         has_error = True
 
     # --- 森空岛签到 ---
@@ -206,16 +208,23 @@ def main():
                 skyland = SkylandClient(sk_token)
                 skyland.start()
                 if skyland.msg:
-                    push("森空岛自动签到", skyland.msg)
+                    summary_parts.append(f"【森空岛 #{idx}】{skyland.msg}")
             except SkylandClientException as e:
                 logger.error(str(e))
-                push("森空岛自动签到", str(e))
+                summary_parts.append(f"【森空岛 #{idx}】❌ {e}")
                 has_error = True
             except Exception as e:  # noqa: BLE001
                 logger.exception("森空岛签到异常: {}", e)
+                summary_parts.append(f"【森空岛 #{idx}】❌ 异常: {e}")
                 has_error = True
     else:
         logger.info("未配置 SKYLAND_TOKEN，跳过森空岛签到")
+
+    # --- 汇总推送 ---
+    if summary_parts:
+        title = "签到通知" if not has_error else "签到通知（有异常）"
+        content = "\n".join(summary_parts)
+        push(title, content)
 
     if has_error:
         sys.exit(1)

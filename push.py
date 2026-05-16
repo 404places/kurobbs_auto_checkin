@@ -192,7 +192,7 @@ def dingtalk_robot(title: str, content: str):
 
 def feishu_robot(title: str, content: str):
     """
-    飞书机器人推送
+    飞书机器人推送（卡片消息）
     环境变量:
         FEISHU_BOT_TOKEN: 飞书机器人的 token (或者完整的 webhook url)
     """
@@ -205,17 +205,35 @@ def feishu_robot(title: str, content: str):
     else:
         url = f"https://open.feishu.cn/open-apis/bot/v2/hook/{token}"
 
+    # 根据标题判断颜色：有异常用红色，否则用绿色
+    header_color = "red" if "异常" in title or "失败" in title else "green"
+
+    # 将每行内容转为卡片元素
+    content_elements = []
+    for line in content.split("\n"):
+        if line.strip():
+            content_elements.append({
+                "tag": "markdown",
+                "content": line
+            })
+
     data = {
-        "msg_type": "text",
-        "content": {
-            "text": f"{title}\n{content}"
+        "msg_type": "interactive",
+        "card": {
+            "header": {
+                "title": {
+                    "tag": "plain_text",
+                    "content": title
+                },
+                "template": header_color
+            },
+            "elements": content_elements
         }
     }
     
     try:
         resp = http.post(url, json=data, timeout=10)
         result = resp.json()
-        # 飞书成功通常 code 为 0
         if result.get("code") == 0 or result.get("StatusCode") == 0:
             logger.info("飞书机器人推送成功")
         else:
