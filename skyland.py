@@ -13,7 +13,10 @@ from securitySm import get_d_id
 APP_CODE = "4ca99fa6b56cc2ba"
 
 # API URLs
-SIGN_URL = "https://zonai.skland.com/api/v1/game/attendance"
+SIGN_URLS = {
+    "arknights": "https://zonai.skland.com/api/v1/game/attendance",
+    "endfield": "https://zonai.skland.com/web/v1/game/endfield/attendance",
+}
 BINDING_URL = "https://zonai.skland.com/api/v1/game/player/binding"
 GRANT_CODE_URL = "https://as.hypergryph.com/user/oauth2/v2/grant"
 CRED_CODE_URL = "https://zonai.skland.com/web/v1/user/auth/generate_cred_by_code"
@@ -89,8 +92,9 @@ class SkylandClient:
         if method.lower() == "get":
             h["sign"], header_ca = self._generate_signature(self._sign_token, p.path, p.query)
         else:
+            body_str = body if isinstance(body, str) else json.dumps(body)
             h["sign"], header_ca = self._generate_signature(
-                self._sign_token, p.path, json.dumps(body)
+                self._sign_token, p.path, body_str
             )
         h.update(header_ca)
         return h
@@ -142,27 +146,35 @@ class SkylandClient:
             if game.get("appCode") not in ATTENDANCE_AVAILABLE_APPCODES:
                 continue
             for binding in game.get("bindingList", []):
-                # 保留 gameId 和 gameName 用于签到请求
+                # 保留 gameId、gameName 和 appCode 用于签到请求
                 binding["_gameId"] = binding.get("gameId", game.get("gameId"))
                 binding["_gameName"] = game.get("gameName", game.get("appCode"))
+                binding["_appCode"] = game.get("appCode")
                 characters.append(binding)
         return characters
 
-    def _sign_character(self, character: Dict[str, Any]):
-        """对单个角色执行签到。"""
+    def _sign_arknights(self, character: Dict[str, Any]):
+        """对明日方舟角色执行签到。"""
         nick = character.get("nickName", "未知")
         channel = character.get("channelName", "")
-        game_name = character.get("_gameName", "")
         game_id = character.get("_gameId", 1)
-        label = f"[{game_name}] {nick}({channel})"
+        label = f"[明日方舟] {nick}({channel})"
+
+        sign_url = SIGN_URLS["arknights"]
         body = {"gameId": game_id, "uid": character.get("uid")}
-        headers = self._get_sign_header(SIGN_URL, "post", body)
-        resp = requests.post(SIGN_URL, headers=headers, json=body, timeout=15).json()
+        headers = self._get_sign_header(sign_url, "post", body)
+        resp = requests.post(sign_url, headers=headers, json=body, timeout=15).json()
 
         if resp["code"] != 0:
-            msg = f"{label} 签到失败：{resp.get('message')}"
-            self.exceptions.append(SkylandClientException(msg))
-            logger.warning(msg)
+            err_msg = resp.get("message", "")
+            if "重复签到" in err_msg or "已签到" in err_msg:
+                msg = f"{label} 今日已签到"
+                self.result[f"{nick}_repeat"] = msg
+                logger.info(msg)
+            else:
+                msg = f"{label} 签到失败：{err_msg}"
+                self.exceptions.append(SkylandClientException(msg))
+                logger.warning(msg)
             return
 
         awards = resp.get("data", {}).get("awards", [])
@@ -172,6 +184,63 @@ class SkylandClient:
             msg = f"{label} 签到成功，获得{res['name']}×{count}"
             self.result[f"{nick}_{res['name']}"] = msg
             logger.info(msg)
+
+    def _sign_endfield(self, character: Dict[str, Any]):
+        """对终末地角色执行签到（按 role 签到，与明日方舟流程不同）。"""
+        nick = character.get("nickName", "未知")
+        channel = character.get("channelName", "")
+        roles = character.get("roles", [])
+
+        if not roles:
+            msg = f"[终末地] {nick}({channel}) 没有角色数据"
+            logger.warning(msg)
+            return
+
+        sign_url = SIGN_URLS["endfield"]
+        for role in roles:
+            role_nick = role.get("nickname", nick)
+            role_id = role.get("roleId", "")
+            server_id = role.get("serverId", "")
+            label = f"[终末地] {role_nick}({channel})"
+
+            # 终末地签到用空 body，通过 header 传角色信息
+            headers = self._get_sign_header(sign_url, "post", "")
+            headers["Content-Type"] = "application/json"
+            headers["sk-game-role"] = f"3_{role_id}_{server_id}"
+            headers["referer"] = "https://game.skland.com/"
+            headers["origin"] = "https://game.skland.com"
+
+            resp = requests.post(sign_url, headers=headers, timeout=15).json()
+
+            if resp["code"] != 0:
+                err_msg = resp.get("message", "")
+                if "重复签到" in err_msg or "已签到" in err_msg:
+                    msg = f"{label} 今日已签到"
+                    self.result[f"{role_nick}_repeat"] = msg
+                    logger.info(msg)
+                else:
+                    msg = f"{label} 签到失败：{err_msg}"
+                    self.exceptions.append(SkylandClientException(msg))
+                    logger.warning(msg)
+                continue
+
+            # 终末地的奖励格式不同：awardIds + resourceInfoMap
+            award_ids = resp.get("data", {}).get("awardIds", [])
+            resource_map = resp.get("data", {}).get("resourceInfoMap", {})
+            for award in award_ids:
+                aid = str(award.get("id", ""))
+                if aid in resource_map:
+                    info = resource_map[aid]
+                    name = info.get("name", "未知")
+                    count = info.get("count", 1)
+                    msg = f"{label} 签到成功，获得{name}×{count}"
+                    self.result[f"{role_nick}_{name}"] = msg
+                    logger.info(msg)
+
+            if not award_ids:
+                msg = f"{label} 签到成功"
+                self.result[f"{role_nick}_sign"] = msg
+                logger.info(msg)
 
     def start(self):
         """执行完整的签到流程。"""
@@ -184,7 +253,11 @@ class SkylandClient:
 
         logger.info("找到 {} 个角色，开始签到", len(characters))
         for character in characters:
-            self._sign_character(character)
+            app_code = character.get("_appCode", "arknights")
+            if app_code == "endfield":
+                self._sign_endfield(character)
+            else:
+                self._sign_arknights(character)
 
         self._log()
 
