@@ -31,8 +31,12 @@ class SkylandClientException(Exception):
     """Custom exception for Skyland client errors."""
 
 
+# 支持签到的游戏 appCode
+ATTENDANCE_AVAILABLE_APPCODES = {"arknights", "endfield"}
+
+
 class SkylandClient:
-    """森空岛签到客户端，用于明日方舟每日签到。"""
+    """森空岛签到客户端，支持明日方舟和终末地每日签到。"""
 
     def __init__(self, token: str):
         if not token:
@@ -128,28 +132,35 @@ class SkylandClient:
         logger.debug("森空岛认证成功")
 
     def _get_binding_list(self) -> List[Dict[str, Any]]:
-        """获取绑定的明日方舟角色列表。"""
+        """获取绑定的角色列表（明日方舟 + 终末地）。"""
         headers = self._get_sign_header(BINDING_URL, "get", None)
         resp = requests.get(BINDING_URL, headers=headers, timeout=15).json()
         if resp["code"] != 0:
             raise SkylandClientException(f'请求角色列表失败：{resp["message"]}')
         characters = []
         for game in resp["data"]["list"]:
-            if game.get("appCode") != "arknights":
+            if game.get("appCode") not in ATTENDANCE_AVAILABLE_APPCODES:
                 continue
-            characters.extend(game.get("bindingList", []))
+            for binding in game.get("bindingList", []):
+                # 保留 gameId 和 gameName 用于签到请求
+                binding["_gameId"] = binding.get("gameId", game.get("gameId"))
+                binding["_gameName"] = game.get("gameName", game.get("appCode"))
+                characters.append(binding)
         return characters
 
     def _sign_character(self, character: Dict[str, Any]):
         """对单个角色执行签到。"""
         nick = character.get("nickName", "未知")
         channel = character.get("channelName", "")
-        body = {"gameId": 1, "uid": character.get("uid")}
+        game_name = character.get("_gameName", "")
+        game_id = character.get("_gameId", 1)
+        label = f"[{game_name}] {nick}({channel})"
+        body = {"gameId": game_id, "uid": character.get("uid")}
         headers = self._get_sign_header(SIGN_URL, "post", body)
         resp = requests.post(SIGN_URL, headers=headers, json=body, timeout=15).json()
 
         if resp["code"] != 0:
-            msg = f"角色{nick}({channel})签到失败：{resp.get('message')}"
+            msg = f"{label} 签到失败：{resp.get('message')}"
             self.exceptions.append(SkylandClientException(msg))
             logger.warning(msg)
             return
@@ -158,7 +169,7 @@ class SkylandClient:
         for award in awards:
             res = award["resource"]
             count = award.get("count") or 1
-            msg = f"角色{nick}({channel})签到成功，获得{res['name']}×{count}"
+            msg = f"{label} 签到成功，获得{res['name']}×{count}"
             self.result[f"{nick}_{res['name']}"] = msg
             logger.info(msg)
 
@@ -168,11 +179,10 @@ class SkylandClient:
         characters = self._get_binding_list()
 
         if not characters:
-            logger.warning("未找到绑定的明日方舟角色")
-            self.result["binding"] = "未找到绑定的明日方舟角色"
+            logger.warning("未找到绑定的角色（支持：明日方舟、终末地）")
             return
 
-        logger.info("找到 {} 个明日方舟角色，开始签到", len(characters))
+        logger.info("找到 {} 个角色，开始签到", len(characters))
         for character in characters:
             self._sign_character(character)
 
